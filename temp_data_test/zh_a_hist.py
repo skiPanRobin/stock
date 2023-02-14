@@ -2,6 +2,7 @@ import pandas as pd
 from stockstats import wrap, StockDataFrame
 import akshare as ak
 
+ak.stock_board_industry_name_em()
 
 def test1():
     stock = pd.read_pickle('./2023-02-06_000056_all.gzip.pickle', compression="gzip")
@@ -11,8 +12,10 @@ def test1():
     # stockStat = wrap.StockDataFrame.retype(stock)
     sd = StockDataFrame(fmt_st)
     # sd.set
-    df = wrap(stock)
+    df = wrap(fmt_st)
+    df.boxplot()
     print(df.head(1))
+
 
 def test2():
     stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol="000056", period="daily")
@@ -23,6 +26,6 @@ def test2():
     print(df.head(1))
 
 
-
 if __name__ == '__main__':
     test1()
+    from bokeh.sampledata.stocks import AAPL, GOOG, IBM, MSFT
