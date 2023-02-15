@@ -1,106 +1,139 @@
-# coding=utf-8
-from __future__ import print_function, absolute_import
-from gm.api import *
-import talib
-'''
-MA short/long (9/30) 日均线辅助MACD 9/12/26
-一. 买点:
-    1. ma 向上且 ma(close,short) > ma(close, long) 或 ma(close,short) 斜率3日内穿过ma(close,long)
-    2. macd, DIF > EMA(dif, 9) 或 预期 DIF 三日内穿过 EMA(dif, 9)
-    
-二. 买点:
-    1. 半仓 
-        1. ma 变平 且
+# coding=utf-8=
 
-'''
-def init(context):
-    context.short = 13                                             # 短周期均线
-    context.long = 55                                              # 长周期均线
-    context.symbol = 'SHFE.rb2101'                                 # 订阅交易标的
-    context.period = context.long + 1                              # 订阅数据滑窗长度
-    context.open_long = False                                      # 开多单标记
-    context.open_short = False                                     # 开空单标记
-    subscribe(context.symbol, '60s', count=context.period)         # 订阅行情
-def on_bar(context, bars):
-    # 获取通过subscribe订阅的数据
-    prices = context.data(context.symbol, '60s', context.period, fields='close')
-    # 利用talib库计算长短周期均线
-    short_avg = talib.SMA(prices.values.reshape(context.period), context.short)
-    long_avg = talib.SMA(prices.values.reshape(context.period), context.long)
-    # 查询持仓
-    position_long = context.account().position(symbol=context.symbol, side=1)
-    position_short = context.account().position(symbol=context.symbol, side=2)
-    # 短均线下穿长均线，做空(即当前时间点短均线处于长均线下方，前一时间点短均线处于长均线上方)
-    if long_avg[-2] < short_avg[-2] and long_avg[-1] >= short_avg[-1]:
-        # 无多仓情况下，直接开空
-        if not position_long:
-            order_volume(symbol=context.symbol, volume=1, side=OrderSide_Sell, position_effect=PositionEffect_Open,
-                        order_type=OrderType_Market)
-            print(context.symbol, '以市价单调空仓到仓位')
-        # 有多仓情况下，先平多，再开空(开空命令放在on_order_status里面)
+"""
+expam 选取上涨板块
+"""
+import json
+import os
+
+import pandas as pd
+from stockstats import StockDataFrame
+import akshare as ak
+
+
+def get_test_data(symbol='互联网服务'):
+    if os.path.exists(f'./{symbol}.gzip.pickle') is True:
+        return pd.read_pickle(f'./{symbol}.gzip.pickle', compression="gzip")
+    else:
+        data_ = ak.stock_board_industry_hist_em(symbol=symbol)
+        data_.to_pickle(f'./{symbol}.gzip.pickle', compression="gzip")
+        return data_
+
+
+class Expma:
+    EMA_SHORT = 9
+    EMA_LONG = 30
+
+    def __init__(self, api_df: pd.DataFrame, ema_short=None, ema_long=None):
+
+        self.sdf = self.fmt_api_date(api_df)
+        self.__ema_short = ema_short if ema_short else Expma.EMA_SHORT
+        self.__ema_long = ema_long if ema_long else Expma.EMA_LONG
+        self.buy_signal = False
+        self.__is_empty = True
+        self.buy_data = list()
+
+    @staticmethod
+    def fmt_api_date(api_data: pd.DataFrame):
+        fmt_st = api_data[['日期', '收盘', '最高', '最低', '成交量']]
+        fmt_st.columns = ['date', 'close', 'high', 'low', 'volume']
+        return StockDataFrame(fmt_st)
+
+    @property
+    def ema_short(self):
+        return self.__ema_short
+
+    @property
+    def ema_long(self):
+        return self.__ema_long
+
+    @ema_short.setter
+    def ema_short(self, ema_short):
+        if isinstance(ema_short, int):
+            self.__ema_short = ema_short
         else:
-            context.open_short = True
-            # 以市价平多仓
-            order_volume(symbol=context.symbol, volume=1, side=OrderSide_Sell, position_effect=PositionEffect_Close,
-                         order_type=OrderType_Market)
-            print(context.symbol, '以市价单平多仓')
-    # 短均线上穿长均线，做多（即当前时间点短均线处于长均线上方，前一时间点短均线处于长均线下方）
-    if short_avg[-2] < long_avg[-2] and short_avg[-1] >= long_avg[-1]:
-        # 无空仓情况下，直接开多
-        if not position_short:
-            order_volume(symbol=context.symbol, volume=1, side=OrderSide_Buy, position_effect=PositionEffect_Open,
-                         order_type=OrderType_Market)
-            print(context.symbol, '以市价单调多仓到仓位')
-        # 有空仓的情况下，先平空，再开多(开多命令放在on_order_status里面)
+            raise ValueError
+
+    @ema_long.setter
+    def ema_long(self, ema_long):
+        if isinstance(ema_long, int):
+            self.__ema_short = ema_long
         else:
-            context.open_long = True
-            # 以市价平空仓
-            order_volume(symbol=context.symbol, volume=1, side=OrderSide_Buy,
-                        position_effect=PositionEffect_Close, order_type=OrderType_Market)
-            print(context.symbol, '以市价单平空仓')
-def on_order_status(context, order):
-    # 查看下单后的委托状态
-    status = order['status']
-    # 成交命令的方向
-    side = order['side']
-    # 交易类型
-    effect = order['position_effect']
-    # 当平仓委托全成后，再开仓
-    if status == 3:
-        # 以市价开空仓，需等到平仓成功无仓位后再开仓
-        # 如果无多仓且side=2（说明平多仓成功），开空仓
-        if effect == 2 and side == 2 and context.open_short:
-            context.open_short = False
-            order_volume(symbol=context.symbol, volume=1, side=OrderSide_Sell, position_effect=PositionEffect_Open,
-                         order_type=OrderType_Market)
-            print(context.symbol, '以市价单调空仓到仓位')
-        # 以市价开多仓,需等到平仓成功无仓位后再开仓
-        # 如果无空仓且side=1（说明平空仓成功），开多仓
-        if effect == 2 and side == 1 and context.open_long:
-            context.open_long = False
-            order_volume(symbol=context.symbol, volume=1, side=OrderSide_Buy, position_effect=PositionEffect_Open,
-                         order_type=OrderType_Market)
-            print(context.symbol, '以市价单调多仓到仓位')
+            raise ValueError
+
+    @staticmethod
+    def buy_sell_item(date, close, rate_increase, is_buy: bool, is_end=False):
+        return {
+            'date': date,
+            'close': close,
+            'rate_increase': rate_increase,
+            'is_buy': is_buy,
+            'is_end': is_end
+        }
+
+    def _cul_ema_short_line(self):
+        self.sdf['ema_short_line'] = self.sdf._ema(self.sdf['close'], self.ema_short)
+
+    def _cul_ema_long_line(self):
+        self.sdf['ema_long_line'] = self.sdf._ema(self.sdf['close'], self.ema_long)
+
+    def _cul_dif_ema(self):
+        self.sdf['dif_ema'] = self.sdf['ema_short_line'] - self.sdf['ema_long_line']
+
+    def is_buy_signal(self):
+        pass
+
+    def save_result(self):
+        with open('./back_test_result.json', 'w', encoding='utf-8') as f:
+            json.dump(self.buy_data, f, indent=4)
+
+    def back_test(self):
+        self._cul_ema_short_line()
+        self._cul_ema_long_line()
+        self._cul_dif_ema()
+        # new_df = self.sdf[['date', 'close', 'ema_short_line', 'ema_long_line', 'dif_ema', 'date']]
+        new_df = self.sdf[self.sdf.shape[0] - 365*2:self.sdf.shape[0]]
+        # new_df.columns = ['date', 'close', 'ema_short_line', 'ema_long_line', 'dif_ema']
+        i = 0
+        for i in range(10, new_df.shape[0]):
+            mean_day1 = new_df['ema_short_line'][i]
+            mean_day2 = new_df['ema_short_line'][i - 1:i].mean()
+            mean_day3 = new_df['ema_short_line'][i - 2:i].mean()
+            # mean_day10 = new_df['ema_short_line'][i-9:i].mean()
+            mean_dif_day1 = new_df['dif_ema'][i]
+            mean_dif_day2 = new_df['dif_ema'][i-1:i].mean()
+            mean_dif_day3 = new_df['dif_ema'][i - 2:i].mean()
+            # mean_dif_day10 = new_df['dif_ema'][i - 9:i].mean()
+            if self.__is_empty is True:
+                if mean_day1 > mean_day2 > mean_day3 and mean_dif_day1 > mean_dif_day2 > mean_dif_day3:
+                    # 空仓且条件符合, 买入
+                    # ema_short_line 斜率正， dif 正在由负转正
+                    last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
+                    rate_increase = 1 if last_buy_item is None \
+                        else new_df['close'][i] / last_buy_item['close'] * last_buy_item['rate_increase']
+                    self.buy_data.append(
+                        self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=True))
+                    self.__is_empty = False
+            else:
+                if mean_day1 > mean_day2 > mean_day3 and mean_dif_day1 > mean_dif_day2 > mean_dif_day3:
+                    # 满仓且正在上涨, 持有, 否则卖出
+                    continue
+                else:  # 满仓但有下跌趋势, 卖出, 并计算涨跌幅
+                    last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
+                    rate_increase = 1 if last_buy_item is None \
+                        else new_df['close'][i] / last_buy_item['close'] * last_buy_item['rate_increase']
+                    self.buy_data.append(
+                        self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=False))
+        if self.__is_empty is False:  # 满仓条件下, 计算回测结束时涨幅
+            last_buy_item = self.buy_data[i] if len(self.buy_data) else None
+            rate_increase = 1 if last_buy_item is None \
+                else new_df['close'][i] / last_buy_item['close'] * last_buy_item['rate_increase']
+            self.buy_data.append(
+                self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=False, is_end=True))
+        self.save_result()
+
+
 if __name__ == '__main__':
-    '''
-    strategy_id策略ID,由系统生成
-    filename文件名,请与本文件名保持一致
-    mode实时模式:MODE_LIVE回测模式:MODE_BACKTEST
-    token绑定计算机的ID,可在系统设置-密钥管理中生成
-    backtest_start_time回测开始时间
-    backtest_end_time回测结束时间
-    backtest_adjust股票复权方式不复权:ADJUST_NONE前复权:ADJUST_PREV后复权:ADJUST_POST
-    backtest_initial_cash回测初始资金
-    backtest_commission_ratio回测佣金比例
-    backtest_slippage_ratio回测滑点比例
-    '''
-    run(strategy_id='strategy_id',
-        filename='main.py',
-        mode=MODE_BACKTEST,
-        token='token_id',
-        backtest_start_time='2020-04-01 09:00:00',
-        backtest_end_time='2020-05-31 15:00:00',
-        backtest_adjust=ADJUST_NONE,
-        backtest_initial_cash=10000000,
-        backtest_commission_ratio=0.0001,
-        backtest_slippage_ratio=0.0001)
+    data = get_test_data()
+    ex = Expma(data)
+    ex.back_test()
