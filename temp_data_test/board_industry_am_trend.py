@@ -125,7 +125,7 @@ class Expma:
                     self.buy_data.append(
                         self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=False))
         if self.__is_empty is False:  # 满仓条件下, 计算回测结束时涨幅
-            last_buy_item = self.buy_data[i] if len(self.buy_data) else None
+            last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
             rate_increase = 1 if last_buy_item is None \
                 else new_df['close'][i] / last_buy_item['close'] * last_buy_item['rate_increase']
             self.buy_data.append(
