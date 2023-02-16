@@ -5,6 +5,8 @@ expam 选取上涨板块
 """
 import json
 import os
+import time
+import datetime
 
 import pandas as pd
 from stockstats import StockDataFrame
@@ -21,24 +23,25 @@ def get_industry_data(symbol='互联网服务'):
 
 
 def get_single_stock(symbol='000001', date='20200101'):
-    if os.path.exists(f'./{symbol}_{date}.gzip.pickle') is True:
-        return pd.read_pickle(f'./{symbol}_{date}.gzip.pickle', compression="gzip"), symbol
+    end_date = time.strftime('%Y%m%d')
+    if os.path.exists(f'./{symbol}_{end_date}.gzip.pickle') is True:
+        return pd.read_pickle(f'./{symbol}_{end_date}.gzip.pickle', compression="gzip"), symbol
     else:
-        data_ =  ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=date, adjust= "qfq")
-        data_.to_pickle(f'./{symbol}_{date}.gzip.pickle', compression="gzip")
+        data_ = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=date, adjust= "qfq")
+        data_.to_pickle(f'./{symbol}_{end_date}.gzip.pickle', compression="gzip")
         return data_, symbol
 
 
 class Expma:
-    EMA_SHORT = 9
-    EMA_LONG = 30
 
     def __init__(self, api_df: pd.DataFrame, symbol: str,ema_short=None, ema_long=None):
 
         self.symbol = symbol
+        self.api_df = api_df
         self.sdf = self.fmt_api_date(api_df)
-        self.__ema_short = ema_short if ema_short else Expma.EMA_SHORT
-        self.__ema_long = ema_long if ema_long else Expma.EMA_LONG
+        self.__ema_short = ema_short if ema_short else StockDataFrame.MACD_EMA_SHORT
+        self.__ema_long = ema_long if ema_long else StockDataFrame.MACD_EMA_LONG
+        # self.__ema_ = MACD_EMA_SIGNAL
         self.buy_signal = False
         self.__is_empty = True
         self.buy_data = list()
@@ -151,11 +154,52 @@ class Expma:
                 self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=False, is_end=True))
         self.save_result()
 
+    def back_test2(self):
+        # macd 回测
+        new_df = self.sdf[self.sdf.shape[0] - 600:self.sdf.shape[0]]
+        i = 0
+        for i in range(300, new_df.shape[0]):
+            macd = new_df['macd'][i]
+            macd1 = new_df['macd'][i-1]
+            macds = new_df['macds'][i]
+            macdh = new_df['macdh'][i]
+            macdh1 = new_df['macdh'][i - 1]
+
+            if self.__is_empty is True:
+                if macdh >= 0 >= macdh1 or 0 < macd < macdh:
+                    # 空仓且条件符合, 买入
+                    # ema_short_line 斜率正， dif 正在由负转正
+                    last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
+                    rate_increase = 1 if last_buy_item is None else last_buy_item['rate_increase']
+                    self.buy_data.append(
+                        self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=True))
+                    self.__is_empty = False
+            else:
+                # if macdh > macdh1 and close > close1:
+                #     # 满仓且正在上涨, 持有, 否则卖出
+                #     continue
+                # if (macdh < macdh1 and (new_df['macdh'][i-2] <= 0 or new_df['macdh'][i-3]<=0))\
+                #         or (macdh <= 0):  # macdh转正三天
+                # if macdh <= 0 or (macdh < macdh1 and macd < macd1):
+                if macdh <= 0:
+                    last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
+                    rate_increase = 1 if last_buy_item is None \
+                        else new_df['close'][i] / last_buy_item['close'] * last_buy_item['rate_increase']
+                    self.buy_data.append(
+                        self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=False))
+                    self.__is_empty = True
+        if self.__is_empty is False:  # 满仓条件下, 计算回测结束时涨幅
+            last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
+            rate_increase = 1 if last_buy_item is None \
+                else new_df['close'][i] / last_buy_item['close'] * last_buy_item['rate_increase']
+            self.buy_data.append(
+                self.buy_sell_item(new_df.index[i], new_df['close'][i], rate_increase, is_buy=False, is_end=True))
+        self.save_result()
 
 if __name__ == '__main__':
-    # symbol = '000156'
-    symbol = '家电行业'
-    # data, symbol = get_single_stock(symbol)
-    data, symbol = get_industry_data(symbol)
+    symbol = '300299'
+    # symbol = '汽车整车'
+    data, symbol = get_single_stock(symbol)
+    # data, symbol = get_industry_data(symbol)
     ex = Expma(data, symbol)
-    ex.back_test()
+    ex.back_test2()
