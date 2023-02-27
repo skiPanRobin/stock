@@ -24,7 +24,7 @@ def objective(fast, slow, signal):
     signals[macd[1:] < signal_line[1:]] = -1
     # 计算累积收益率
     strategy_returns = returns * signals
-    cumulative_returns = np.cumprod(1 + strategy_returns)
+    cumulative_returns = np.cumprod(1 + strategy_returns) - 1
     # 返回负的累积收益率作为目标函数
     print(f'fast{fast}, slow: {slow}, signal:{signal}, 累计收益: {cumulative_returns.iloc[-1]}')
     return -cumulative_returns.iloc[-1]
