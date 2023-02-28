@@ -71,14 +71,15 @@ def get_etf_data(fund: str = "511280", start_date: str = "20190101", end_date: s
 
 class Expma:
 
-    def __init__(self, api_df: pd.DataFrame, symbol: str, end_date,ema_short=None, ema_long=None):
+    def __init__(self, api_df: pd.DataFrame, symbol: str, end_date, ema_short=None, ema_long=None, ema_signal=None):
         self.symbol = symbol
         self.end_date = end_date
         self.api_df = api_df
+        StockDataFrame.MACD_EMA_SHORT = ema_short if ema_short else StockDataFrame.MACD_EMA_SHORT
+        StockDataFrame.MACD_EMA_LONG = ema_long if ema_long else StockDataFrame.MACD_EMA_LONG
+        StockDataFrame.MACD_EMA_SIGNAL = ema_signal if ema_signal else StockDataFrame.MACD_EMA_SIGNAL
         self.sdf = self.fmt_api_date(api_df)
-        self.__ema_short = ema_short if ema_short else StockDataFrame.MACD_EMA_SHORT
-        self.__ema_long = ema_long if ema_long else StockDataFrame.MACD_EMA_LONG
-        # self.__ema_ = MACD_EMA_SIGNAL
+
         self.buy_signal = False
         self.__is_empty = True
         self.buy_data = list()
@@ -151,7 +152,7 @@ class Expma:
         # macd 回测
         new_df = self.sdf[self.sdf.shape[0] - min(600, self.sdf.shape[0]):self.sdf.shape[0]]
         i = 0
-        for i in range(new_df.shape[0] - min(260, new_df.shape[0]), new_df.shape[0]):
+        for i in range(new_df.shape[0] - min(120, new_df.shape[0]), new_df.shape[0]):
             macd = new_df['macd'][i]
             macd1 = new_df['macd'][i-1]
             macds = new_df['macds'][i]
@@ -168,12 +169,6 @@ class Expma:
                         self.buy_sell_item(str(new_df.index[i]), new_df['close'][i], rate_increase, is_buy=True))
                     self.__is_empty = False
             else:
-                # if macdh > macdh1 and close > close1:
-                #     # 满仓且正在上涨, 持有, 否则卖出
-                #     continue
-                # if (macdh < macdh1 and (new_df['macdh'][i-2] <= 0 or new_df['macdh'][i-3]<=0))\
-                #         or (macdh <= 0):  # macdh转正三天
-                # if macdh <= 0 or (macdh < macdh1 and macd < macd1):
                 if macdh <= 0:
                     last_buy_item = self.buy_data[-1] if len(self.buy_data) else None
                     rate_increase = 1 if last_buy_item is None \
@@ -216,6 +211,7 @@ if __name__ == '__main__':
     # data, symbol = get_single_index(symbol)
     # ex = Expma(data, symbol)
     # ex.back_test2()
-    for data, sym, date in eft_main():
-        ex = Expma(data, sym, end_date=date)
-        ex.back_test2()
+    # for data, sym, date in eft_main():
+    data, sym = get_single_stock('000063')
+    ex = Expma(data, sym, end_date='20200101', ema_short=15, ema_long=67, ema_signal=52)
+    ex.back_test2()
