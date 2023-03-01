@@ -1,0 +1,6 @@
+akshare==1.8.91
+stockstats==0.5.1
+SQLAlchemy==2.0.4
+pymysql==1.0.2
+scikit-optimize==0.9.0
+TA-Lib==0.4.24
