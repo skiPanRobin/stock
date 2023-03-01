@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import talib
 from skopt import gp_minimize
@@ -7,11 +9,11 @@ from skopt.plots import plot_convergence
 
 from board_industry_am_trend import get_single_stock, Expma
 
-space = [Real(0.3, 1.7, name='fast'), Real(0.3, 3, name='slow'), Integer(4, 30, name='signal')]
+space = [Real(0.3, 2, name='fast'), Real(0.39, 3, name='slow'), Integer(4, 40, name='signal')]
 # space = [Integer(int(0.5*12), 2*12, name='fast'), Integer(int(0.5*26), 2*26, name='slow'), Integer(5, 60, name='signal')]
 # TRAD_DAYS = 261  # 最近一年
 TRAD_DAYS = 130  # 最近半年
-code = '002241'
+code = '002466'
 
 
 def get_data(code=code):
@@ -25,6 +27,8 @@ def __objective(fast, slow, signal):
     """
     目标函数，根据给定的 MACD 参数计算出收益率并返回负的累计收益率作为目标值
     """
+    if round(fast*12) > round(slow*26):
+        return 1
     # 计算MACD指标
     data = get_data()
     macd, signal_line, _ = talib.MACD(data['close'], fastperiod=round(fast*12), slowperiod=round(slow*26), signalperiod=signal)
@@ -45,7 +49,7 @@ def __objective(fast, slow, signal):
     cumulative_returns = np.cumprod(1 + strategy_returns) - 1
     # 计算回撤
     max_drawdown = _max_drawdown(cumulative_returns)
-    print('最大回撤', max_drawdown)
+    print('最大回撤: ', max_drawdown, '收益: ', cumulative_returns.iloc[-1])
     return -cumulative_returns.iloc[-1]
 
 
@@ -90,14 +94,21 @@ def _objective(fast, slow, signal, code):
 
 def main(obj):
     # 进行优化
-    res = gp_minimize(obj, space, n_calls=150, random_state=0)
+    res = gp_minimize(obj, space, n_calls=100, random_state=0)
     # 输出结果
     print('最优参数:', res.x)
     print('最优目标函数值:', -res.fun)
     print(f'fast:{int(res.x[0]*12)}, slow: {int(res.x[1]*26)}, signal: {res.x[2]}')
+    return int(res.x[0]*12), int(res.x[1]*26), res.x[2], -res.fun, {
+        'date': time.strftime('%Y-%m-%d'),
+        'code': ''
+        'fast'
+    }
+
     # print(f'fast:{int(res.x[0])}, slow: {int(res.x[1])}, signal: {res.x[2]}')
-    # 绘制收敛曲线
-    plot_convergence(res)
+    # # 绘制收敛曲线
+    # plot_convergence(res)
+
 
 
 if __name__ == '__main__':
