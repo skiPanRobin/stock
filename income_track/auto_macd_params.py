@@ -122,8 +122,8 @@ class AutoMacdParams:
         print('最优目标函数值:', yields)
         cumulative_returns, returns, signals, max_drawdown = self.cur_cumulative_returns(fast, slow, signal)
         trade_info = self._mark_trade_info(returns, signals, cumulative_returns)
-        trade_res = self._auto_result(fast, slow, signal, yields, trade_info, max_drawdown)
-        return trade_res, trade_info
+        auto_result = self._auto_result(fast, slow, signal, yields, trade_info, max_drawdown)
+        return auto_result, trade_info
 
 
 if __name__ == '__main__':
