@@ -4,7 +4,6 @@
 @Author  ：NewBin
 @Date    ：2023/3/2 10:45 
 """
-import json
 import os
 import time
 import json
@@ -54,11 +53,35 @@ def _online_his_data(stock_type, code):
     return _api_map[stock_type](code)
 
 
+def _save_trad_days(code, stock_type, data: pd.DataFrame):
+    dir_name = _api_map[stock_type].__name__
+    dir_path = f'./{dir_name}'
+    file_name = f'{dir_path}/tb_{code}_{date}.zip.pickle'
+    if os.path.exists(dir_path) is False:
+        os.mkdir(path=dir_path)
+    data.to_pickle(file_name, compression="gzip")
+
+
+def _save_trad_status(code, stock_type, trad_status: dict):
+    dir_name = _api_map[stock_type].__name__
+    dir_path = f'./{dir_name}'
+    file_name = f'{dir_path}/tbs_{code}_{date}.json'
+    if os.path.exists(dir_path) is False:
+        os.mkdir(path=dir_path)
+    with open(file_name, 'w', encoding='utf-8') as f:
+        json.dump(obj=trad_status, fp=f, ensure_ascii=False, indent=4)
+
+
+def save_trade(code, stock_type, data: pd.DataFrame, trad_status: dict):
+    _save_trad_days(code, stock_type, data)
+    _save_trad_status(code, stock_type, trad_status)
+
+
 def get_his_data(code: str, stock_type: int):
     """
-    获取股票|行业|基金历史数据
+    获取 1.股票|2.ETF|3.行业|4.指数
     :param code: A股股票代码|基金代码|行业板块中文|新浪指数
-    :param stock_type: 1: 股票, 2: 行业板块, 3: 基金ETF, 4: 指数
+    :param stock_type: 1: 股票, 2: 基金ETF, 3: 行业板块, 4: 指数
     :return:
     """
     dir_name = _api_map[stock_type].__name__
@@ -74,36 +97,13 @@ def get_his_data(code: str, stock_type: int):
         return his_data
 
 
-def save_trad_info(code, stock_type, data: pd.DataFrame):
-    dir_name = _api_map[stock_type].__name__
-    dir_path = f'./{dir_name}'
-    file_name = f'{dir_path}/tb_{code}_{date}.zip.pickle'
-    if os.path.exists(dir_path) is False:
-        os.mkdir(path=dir_path)
-    data.to_pickle(file_name, compression="gzip")
-
-
-def save_trad_simple(code, stock_type, simple: dict):
-    dir_name = _api_map[stock_type].__name__
-    dir_path = f'./{dir_name}'
-    file_name = f'{dir_path}/tbs_{code}_{date}.json'
-    if os.path.exists(dir_path) is False:
-        os.mkdir(path=dir_path)
-    with open(file_name, 'w', encoding='utf-8') as f:
-        json.dump(obj=simple, fp=f, ensure_ascii=False, indent=4)
-
-
-if __name__ == '__main__':
-    from auto_macd_params import AutoMacdParams
-    # get_his_data('000001', stock_type=1)  # 股票
+def demo():
     c = '515400'
     st = 2
     data = get_his_data(c, stock_type=st)  # 东财etf 515400: 大数据ETF
     # get_his_data('515400', stock_type=3)
     print(data[['close']])
-    amp = AutoMacdParams('515400', name='大数据ETF', data=data, trad_days=130, n_calls=10)
-    res, trade_info = amp.main()
-    y = res.get('yields')
-    save_trad_info(c, st, data=trade_info)
-    save_trad_simple(c, st, res)
 
+
+if __name__ == '__main__':
+    demo()
