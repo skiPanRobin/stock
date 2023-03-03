@@ -43,7 +43,6 @@ class AutoMacdParams:
         self.n_calls = n_calls
         self.space = [Real(0.3, 2, name='_fast'), Real(0.39, 3, name='_fast'), Integer(4, 40, name='signal')]
 
-    # @use_named_args(dimensions=SPACE)
     def _objective(self):
         @use_named_args(dimensions=SPACE)
         def _objective_wrapper(_fast, _slow, signal):
