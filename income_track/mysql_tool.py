@@ -1,27 +1,29 @@
+import os
+
 import pymysql
 from pymysql.cursors import DictCursor
 
 
 class MysqlTool:
 
-    def __init__(self, charset='utf8mb4'):
-        self.host = '119.91.142.194'
-        self.port = 3306
-        self.user = 'root'
-        self.password = 'mariadb'
-        self.db = 'stock_data'
-        self.charset = charset
+    def __init__(self):
+        self._host = os.getenv('R_MYSQL_HOST') if os.getenv('R_MYSQL_HOST') else 'localhost'
+        self._port = int(os.getenv('R_MYSQL_PORT')) if os.getenv('R_MYSQL_HOST') else 3306
+        self._user = os.getenv('R_MYSQL_USER') if os.getenv('R_MYSQL_USER') else 'root'
+        self._password = os.getenv("R_MYSQL_PW") if os.getenv("R_MYSQL_PW") else 'root'
+        self._db = os.getenv('R_MYSQL_DB') if os.getenv('R_MYSQL_DB') else 'stock_data'
+        self._charset = os.getenv('R_MYSQL_CHARSET') if os.getenv('R_MYSQL_CHARSET') else 'utf8mb4'
         self.connection, self.cursor = self.connect()
 
     def connect(self):
         try:
             self.connection = pymysql.connect(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password,
-                db=self.db,
-                charset=self.charset,
+                host=self._host,
+                port=self._port,
+                user=self._user,
+                password=self._password,
+                db=self._db,
+                charset=self._charset,
                 cursorclass=DictCursor
             )
             self.cursor = self.connection.cursor
