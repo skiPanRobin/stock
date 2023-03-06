@@ -41,11 +41,17 @@ def _index_api(code):
     return ak.stock_zh_index_daily(symbol=code)
 
 
+def _zh_ah(code):
+    print(f'codeless: {code}')
+    return ak.stock_zh_a_spot_em()
+
+
 _api_map = {
     1: _single_api,  # 个股
     2: _etf_api,  # 东财ETF
     3: _industry_api,  # 行业板块
     4: _index_api,  # 新浪指数
+    5: _zh_ah
 }
 
 
@@ -79,7 +85,7 @@ def save_trade(code, stock_type, data: pd.DataFrame, trad_status: dict):
 
 def get_his_data(code: str, stock_type: int):
     """
-    获取 1.股票|2.ETF|3.行业|4.指数
+    获取 1.股票|2.ETF|3.行业|4.指数|5.當前A股數據
     :param code: A股股票代码|基金代码|行业板块中文|新浪指数
     :param stock_type: 1: 股票, 2: 基金ETF, 3: 行业板块, 4: 指数
     :return:
