@@ -102,10 +102,11 @@ def update_stock_zh_ah_name():
     )
 
 
-def current_closed_to_history():
+def update_sub_stocks_history():
     # 查找訂閱的股票, 並把最近一日的收盤價寫到歷史記錄表中
-
-    pd.read_sql()
+    with engine.connect() as con:
+        sql = '''select * from stock_zh_ah_name sn join sub_stocks ss on sn.code=ss.code and sn.stock_type=ss.stock_type where sn.`date`=DATE_FORMAT(CURRENT_DATE, '%Y%m%d')'''
+        data = pd.read_sql()
 
 
 

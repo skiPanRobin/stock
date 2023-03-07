@@ -63,8 +63,9 @@ class MysqlTool:
 
 def demo():
     mt = MysqlTool()
-    sql = "SELECT date, `code`, `name`, high, low, `open`, closed, pe_dynamic, volume  from " \
-          "stock_zh_ah_name WHERE date = DATE_SUB(CURRENT_DATE,INTERVAL 1 DAY) AND `code` = '000002';"
+    # sql = "SELECT `date`, `code`, `name`, high, low, `open`, closed, pe_dynamic, volume  from " \
+    #       "stock_zh_ah_name WHERE date = DATE_SUB(CURRENT_DATE,INTERVAL 1 DAY) AND `code` = '000002';"
+    sql = "SELECT code, 1, name, quo, quote_change, ups_downs, volume, turnover, amplitude, high, low, open, closed"
     with mt.cursor as cur:
         cur.execute(sql)
         print(cur.fetchall())
