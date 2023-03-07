@@ -17,7 +17,7 @@ from stock_tool import get_his_data
 
 mt = MysqlTool()
 uri = f'mysql+pymysql://{mt.user}:{quote_plus(mt.password)}@{mt.host}:{mt.port}/{mt.db}?charset={mt.charset}'
-engine = create_engine(url=uri)
+engine = create_engine(url=mt.uri)
 # zh_name_table = 'stock_zh_ah_name'          # 存放所有A股最近交易截止日數據
 # sub_stocks_history = 'sub_stocks_history'   # 存放A股訂閱股票所有每日交易數據
 

@@ -12,6 +12,7 @@ class MysqlTool:
     # _db = os.getenv('R_MYSQL_DB') if os.getenv('R_MYSQL_DB') else 'stock_income_track'
     db = 'stock_income_track'
     charset = os.getenv('R_MYSQL_CHARSET') if os.getenv('R_MYSQL_CHARSET') else 'utf8mb4'
+    uri = os.getenv('R_MYSQL_URI') if os.getenv('R_MYSQL_URI') else '...'
 
     def __init__(self):
         self.connection, self.cursor = self.connect()
