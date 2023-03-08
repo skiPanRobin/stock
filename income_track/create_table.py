@@ -6,7 +6,7 @@
 """
 
 from sqlalchemy import create_engine, PrimaryKeyConstraint
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, Integer, DateTime, FLOAT, DECIMAL, CHAR, BOOLEAN
 
 from mysql_tool import MysqlTool as mt
@@ -48,28 +48,35 @@ class StockZhASpotEm(Base):
 class FundEtfDailyEm(Base):
     """
     东方财富网-天天基金网-基金数据-场内交易基金
-    当15点之后更新的数据,latest_price作为当日收盘价
-    由于fund_etf_fund_info_em不提供市价(收盘价),
+    只提供了市价, 无 fund_etf_fund_info_em 提供的净值数据
     所以使用auto_macd_params计算式, 不适用此表的数据
     """
     __tablename__ = 'fund_etf_daily_em'
     __table_args__ = (
         PrimaryKeyConstraint('date', 'code'),
-        {'comment': "场内交易基金实时行情"},
+        {'comment': "当前交易日的所有场内交易基金数据"},
     )
     code = Column(String(10), comment='基金代码')
-    name = Column(String(10), comment='基金简称')
+    name = Column(String(40), comment='基金简称')
     type = Column(String(10), comment='类型')
-    latest_time = Column(String(10), comment='当天最后更新时间')
-    latest_price = Column(FLOAT, comment='当天最后一次更新价格')
+    today_nav = Column(FLOAT, comment='当日单位净值')
+    today_cum_nav = Column(FLOAT, comment='当日累计净值')
+    yesterday_nav = Column(FLOAT, comment='昨日单位净值')
+    yesterday_cum_nav = Column(FLOAT, comment='昨日累计净值')
+    quote_change = Column(FLOAT, comment='增长值')
+    ups_downs = Column(String(20), comment='增长率')
+    latest_time = Column(DateTime, comment='最后更新时间')
+    latest_price = Column(FLOAT, comment='最后更新时间市价')
+    discount_rate = Column(String(10), comment='折价率')
     date = Column(CHAR(8), comment='日期')
 
 
 class FundEtfInfoEm(Base):
+    # TODO: 暂未使用该表
     __tablename__ = 'fund_etf_info_em'
     __table_args__ = (
         PrimaryKeyConstraint('date', 'code'),
-        {'comment': "场内交易基金实时行情"},
+        {'comment': "场内交易基金-历史净值明细"},
     )
     code = Column(String(10), comment='基金代码')
     name = Column(String(10), comment='基金简称')
@@ -80,6 +87,7 @@ class FundEtfInfoEm(Base):
 
 
 class SubStocks(Base):
+    # 目前只有该表使用, 其余数据都直接从接口数据中获取
     __tablename__ = 'sub_stocks'
     __table_args__ = (
         PrimaryKeyConstraint('date', 'code'),
@@ -88,7 +96,7 @@ class SubStocks(Base):
     code = Column(String(10), comment='股票|基金代码')
     name = Column(String(10), comment='股票|基金简称')
     stock_type = Column(Integer, comment='1.股票; 2. 基金')
-    is_delete = Column(BOOLEAN, default=False,comment='是否失效')
+    is_delete = Column(BOOLEAN, default=False, comment='是否失效')
     date = Column(CHAR(8), comment='日期')
 
 

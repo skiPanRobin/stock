@@ -5,11 +5,12 @@
 @Date    ：2023/3/6 11:49 
 """
 import time
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
-from sqlalchemy.types import VARCHAR, INT, FLOAT, DECIMAL, CHAR
+from sqlalchemy.types import VARCHAR, INT, FLOAT, DECIMAL, CHAR, DATETIME
 from urllib.parse import quote_plus
 
 from mysql_tool import MysqlTool
@@ -102,13 +103,37 @@ def update_stock_zh_ah_name():
     )
 
 
-def update_sub_stocks_history():
-    # 查找訂閱的股票, 並把最近一日的收盤價寫到歷史記錄表中
-    with engine.connect() as con:
-        sql = '''select * from stock_zh_ah_name sn join sub_stocks ss on sn.code=ss.code and sn.stock_type=ss.stock_type where sn.`date`=DATE_FORMAT(CURRENT_DATE, '%Y%m%d')'''
-        data = pd.read_sql()
+def upsert_fund_etf_daily_em():
 
+    data_raw = get_his_data(code=get_code(), stock_type=6)
+    data_raw.columns = [
+        'code', 'name', 'type', 'today_nav', 'today_cum_nav', 'yesterday_nav',
+        'yesterday_cum_nav', 'quote_change', 'ups_downs', 'latest_price',
+        'discount_rate'
+    ]
+    data_raw.replace('---', '0')
+    data_raw[['latest_time']] = time.strftime('%Y-%m-%d %H:%M:%S')
+    data_raw[['date']] = time.strftime('%Y%m%d')
+    data_raw.to_sql(
+        name='fund_etf_daily_em', con=engine, index=False, if_exists='replace',
+        dtype={
+            'code': VARCHAR(10),
+            'name': VARCHAR(40),
+            'type': VARCHAR(10),
+            'today_nav': FLOAT,
+            'today_cum_nav': FLOAT,
+            'yesterday_nav': FLOAT,
+            'yesterday_cum_nav': FLOAT,
+            'quote_change': FLOAT,
+            'ups_downs': VARCHAR(20),
+            'latest_price': VARCHAR(20),
+            'discount_rate': VARCHAR(20),
+            'latest_time': DATETIME,
+            'date': CHAR(8)
+        }
+
+    )
 
 
 if __name__ == '__main__':
-    update_stock_zh_ah_name()
+    upsert_fund_etf_daily_em()
