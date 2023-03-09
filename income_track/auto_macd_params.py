@@ -66,51 +66,75 @@ class AutoMacdParams:
         # 计算收益率
         returns = np.diff(self._close) / self._close[:-1]
         # 计算交易信号
-        signals = np.zeros_like(returns)
-        signals[macd[1:] > signal_line[1:]] = 1  # 持仓
-        signals[macd[1:] < signal_line[1:]] = 0  # 平仓
+        signals_raw = np.zeros_like(returns)
+        signals_raw[macd[1:] > signal_line[1:]] = 1  # 持仓
+        signals_raw[macd[1:] < signal_line[1:]] = 0  # 平仓
         # signals[macd[1:] < signal_line[1:]] = -1    # 做空
         # 只看最近TRAD_DAYS个交易日
-        signals[:-min(self._trad_days, signals.shape[0])] = 0
+        signals_raw[:-min(self._trad_days, signals_raw.shape[0])] = 0
         # 将交易信号向后移动一天
-        signals = np.concatenate([[0], signals[:-1]])
+        signals = np.concatenate([[0], signals_raw[:-1]])
         # 计算累积收益率
         strategy_returns = returns * signals
         cumulative_returns = np.cumprod(1 + strategy_returns) - 1
         # 计算回撤
         max_drawdown = _max_drawdown(cumulative_returns)
         print('最大回撤: ', max_drawdown, '收益: ', cumulative_returns.iloc[-1])
-        return cumulative_returns, returns, signals, max_drawdown
+        return cumulative_returns, returns, signals, signals_raw, max_drawdown
 
-    def _mark_trade_info(self, returns, signals, cumulative_returns):
+    def _mark_trade_info(self, returns, signals, signals_raw, cumulative_returns):
         data = pd.DataFrame()
         data[['date']] = self._data[['date']]
         data[['close']] = self._data[['close']]
         data['returns'] = pd.concat([pd.Series([0]), returns], ignore_index=True)
+        # 持有信号 0,1转换时, 0表示空仓, 1表示持仓
         data['signals'] = pd.concat([pd.Series([0]), pd.Series(signals)], ignore_index=True)
+        # 交易信号, 0,1转换时, 1表示的1的后一个交易日以前一个交易日的收盘价买入
+        data['signals_raw'] = pd.concat([pd.Series([0]), pd.Series(signals_raw)], ignore_index=True)
         data['cumulative_returns'] = pd.concat([pd.Series([0]), pd.Series(cumulative_returns)], ignore_index=True)
         return data
 
-    def _auto_result(self, fast, slow, signal, yields, trade_info, max_drawdown):
+    def _auto_result(self, fast, slow, signal, yields, trade_info, max_drawdown, signals_raw):
         signals = trade_info['signals']
         date = trade_info['date']
         hold_days = signals.sum()
+        start_dt = date.iloc[date.shape[0] - min(self._trad_days, date.shape[0])]
         return {
-            'date': time.strftime('%Y-%m-%d'),
+            'date': time.strftime('%Y%m%d'),
             'code': self._code,
-            's_dt': datetime.strftime(date.iloc[date.shape[0] - min(self._trad_days, date.shape[0])], '%Y-%m-%d'),
-            'trade_days': self._trad_days,
             'name': self._name,
+            # 's_dt': datetime.strftime(date.iloc[date.shape[0] - min(self._trad_days, date.shape[0])], '%Y-%m-%d'),
+            'start_dt': start_dt if isinstance(start_dt, str) else datetime.strftime(start_dt, '%Y-%m-%d'),
+            'trade_days': self._trad_days,
             'fast': fast,
             'slow': slow,
             'signal': int(signal),
-            'hold_days': int(hold_days),
+            'hold_days': int(hold_days),                                        # 持有时间
             'hold_status': '持有' if int(signals.iloc[-1]) == 1 else '空仓',
-            'hold_rate': round(hold_days / self._trad_days, 4) * 100,
+            'hold_status_change': self.get_hold_status_change(signals_raw),
+            'hold_rate': round(hold_days / self._trad_days, 4) * 100,           # 持有率
             'buy_times': (signals != signals.shift()).cumsum()[signals == 1].nunique(),
             'drawdown': round(max_drawdown, 4),
             'yields': yields,
         }
+
+    @staticmethod
+    def get_hold_status_change(signals_raw):
+        operation_map = {
+            1: '空仓转持仓',
+            2: '无变动',
+            3: '持仓转空仓'
+        }
+        signal1 = signals_raw.iloc[-1]      # 最后一天的交易信号
+        signal2 = signals_raw.iloc[-2]    # 最后第二天的交易信号
+        if signal1 == 1 and signal2 == 0:
+            return operation_map[1]
+        elif signal1 == signal2:
+            return operation_map[2]
+        elif signal1 == 0 and signal2 == 1:
+            return operation_map[3]
+        else:
+            return f'unknow: signal1: {signal1}, signal2: {signal2}'
 
     def main(self):
         res = self._objective()
@@ -120,10 +144,10 @@ class AutoMacdParams:
         yields = round(-res.fun, 4)
         print('最优参数 fast/slow/signal:', fast, slow, signal)
         print('最优目标函数值:', yields)
-        cumulative_returns, returns, signals, max_drawdown = self.cur_cumulative_returns(fast, slow, signal)
+        cumulative_returns, returns, signals, signals_raw, max_drawdown = self.cur_cumulative_returns(fast, slow, signal)
         trade_info = self._mark_trade_info(returns, signals, cumulative_returns)
         auto_result = self._auto_result(fast, slow, signal, yields, trade_info, max_drawdown)
-        return auto_result, trade_info
+        return trade_info, auto_result
 
 
 if __name__ == '__main__':
