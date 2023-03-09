@@ -101,5 +101,29 @@ class SubStocks(Base):
     date = Column(CHAR(8), comment='日期')
 
 
+class AutoMacdResult(Base):
+    __tablename__ = 'auto_macd_result'
+    __table_args__ = (
+        PrimaryKeyConstraint('date', 'code'),
+        {'comment': "自动调参macd计算结果"},
+    )
+    date = Column(CHAR(8), comment='日期')
+    # latest_trade = Column(CHAR(10), comment='最后一次交易日期')
+    code = Column(String(10), comment='股票|基金代码')
+    name = Column(String(40), comment='股票|基金简称')
+    start_dt = Column(CHAR(10), comment='回测开始时间')
+    trade_days = Column(Integer, comment='交易总天数')
+    fast = Column(Integer, comment='快线参数')
+    slow = Column(Integer, comment='慢线参数')
+    signal = Column(Integer, comment='信号线参数')
+    hold_days = Column(Integer, comment='总共持有天数')
+    hold_status = Column(String(10), comment='持有状态')
+    hold_status_change = Column(String(10), comment='后一个交易日操作指令')
+    hold_rate = Column(FLOAT, comment='持有率')
+    trade_times = Column(Integer, comment='交易次数')
+    drawdown = Column(FLOAT, comment='最大回撤')
+    yields = Column(FLOAT, comment='盈利率')
+
+
 if __name__ == '__main__':
     Base.metadata.create_all(engine)
