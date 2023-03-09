@@ -4,14 +4,15 @@
 @Author  ：NewBin
 @Date    ：2023/3/7 18:39 
 """
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, PrimaryKeyConstraint
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, String, Integer, DateTime, FLOAT, DECIMAL, CHAR, BOOLEAN
 
 from mysql_tool import MysqlTool as mt
-
-engine = create_engine(url=mt.uri)
+uri = f'mysql+pymysql://{mt.user}:{quote_plus(mt.password)}@{mt.host}:{mt.port}/{mt.db}?charset={mt.charset}'
+engine = create_engine(url=uri)
 Base = declarative_base()
 
 
