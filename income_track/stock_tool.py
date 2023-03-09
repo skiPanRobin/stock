@@ -1,8 +1,8 @@
 # -*- coding: UTF-8 -*-
 """
-@Project ：income_track 
+@Project ：income_track
 @Author  ：NewBin
-@Date    ：2023/3/2 10:45 
+@Date    ：2023/3/2 10:45
 """
 import os
 import time
@@ -10,6 +10,7 @@ import json
 
 import pandas as pd
 import akshare as ak
+from numpy import int32
 
 date = end_date = time.strftime('%Y%m%d')
 START_DATE = '20180101'
@@ -74,6 +75,7 @@ def _save_trad_days(code, stock_type, data: pd.DataFrame):
     data.to_pickle(file_name, compression="gzip")
 
 
+change_x = lambda x: {k: int(v) if isinstance(v, int32) else v for k, v in x.items()}
 def _save_trad_status(code, stock_type, trad_status: dict):
     dir_name = _api_map[stock_type].__name__
     dir_path = f'./{dir_name}'
@@ -81,12 +83,16 @@ def _save_trad_status(code, stock_type, trad_status: dict):
     if os.path.exists(dir_path) is False:
         os.mkdir(path=dir_path)
     with open(file_name, 'w', encoding='utf-8') as f:
-        json.dump(obj=trad_status, fp=f, ensure_ascii=False, indent=4)
+        try:
+            json.dump(obj=change_x(trad_status), fp=f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            print(e)
+            print(trad_status)
 
 
-def save_trade(code, stock_type, data: pd.DataFrame, trad_status: dict):
-    _save_trad_days(code, stock_type, data)
-    _save_trad_status(code, stock_type, trad_status)
+def save_trade(code, stock_type, auto_result: pd.DataFrame, trade_info: dict):
+    _save_trad_days(code, stock_type, auto_result)
+    _save_trad_status(code, stock_type, trade_info)
 
 
 def get_his_data(code: str, stock_type: int):
