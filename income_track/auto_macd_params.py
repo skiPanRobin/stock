@@ -34,9 +34,10 @@ class AutoMacdParams:
     SLOW = 26
     SIGNAL = 9
 
-    def __init__(self, code: str, name: str, data: pd.DataFrame, trad_days=130, n_calls=100):
+    def __init__(self, code: str, name: str, stock_type: int, data: pd.DataFrame, trad_days=130, n_calls=100):
         self._code = code
         self._name = name
+        self._stock_type = stock_type
         self._trad_days = trad_days
         self._data = data
         self._close = self._data['close']
@@ -48,12 +49,13 @@ class AutoMacdParams:
         def _objective_wrapper(_fast, _slow, signal):
             fast = round(_fast * self.FAST)
             slow = round(_slow * self.SLOW)
-            if fast > slow:
-                return 0
-            cumulative_returns, returns, signals, max_drawdown = self.cur_cumulative_returns(fast, slow, signal)
-            if float(max_drawdown) > 0.13:
+            if fast >= slow:
+                return 0.01
+            __ = self.cur_cumulative_returns(fast, slow, signal)
+            cumulative_returns, returns, signals, signals_raw, max_drawdown = __
+            if float(max_drawdown) > 0.13 and cumulative_returns.iloc[-1] - max_drawdown <= 0.1:
                 print(f'warning returns: {cumulative_returns.iloc[-1]}, drawdown: {max_drawdown} > 13per')
-                return 0
+                return 0.01      # 舍去较大亏损结果, 0.9表示收益为-0.9
             return -cumulative_returns.iloc[-1]
 
         return gp_minimize(_objective_wrapper, SPACE, n_calls=self.n_calls, random_state=0)
@@ -79,7 +81,7 @@ class AutoMacdParams:
         cumulative_returns = np.cumprod(1 + strategy_returns) - 1
         # 计算回撤
         max_drawdown = _max_drawdown(cumulative_returns)
-        print('最大回撤: ', max_drawdown, '收益: ', cumulative_returns.iloc[-1])
+        print(f'code: {self._code}, name: {self._name}, 最大回撤: ', max_drawdown, '收益: ', cumulative_returns.iloc[-1])
         return cumulative_returns, returns, signals, signals_raw, max_drawdown
 
     def _mark_trade_info(self, returns, signals, signals_raw, cumulative_returns):
@@ -103,6 +105,7 @@ class AutoMacdParams:
             'date': time.strftime('%Y%m%d'),
             'code': self._code,
             'name': self._name,
+            'stock_type': self._stock_type,
             # 's_dt': datetime.strftime(date.iloc[date.shape[0] - min(self._trad_days, date.shape[0])], '%Y-%m-%d'),
             'start_dt': start_dt if isinstance(start_dt, str) else datetime.strftime(start_dt, '%Y-%m-%d'),
             'trade_days': self._trad_days,
@@ -113,7 +116,7 @@ class AutoMacdParams:
             'hold_status': '持有' if int(signals.iloc[-1]) == 1 else '空仓',
             'hold_status_change': self.get_hold_status_change(signals_raw),
             'hold_rate': round(hold_days / self._trad_days, 4) * 100,           # 持有率
-            'buy_times': (signals != signals.shift()).cumsum()[signals == 1].nunique(),
+            'trade_times': (signals != signals.shift()).cumsum()[signals == 1].nunique(),
             'drawdown': round(max_drawdown, 4),
             'yields': yields,
         }
@@ -125,8 +128,8 @@ class AutoMacdParams:
             2: '无变动',
             3: '持仓转空仓'
         }
-        signal1 = signals_raw.iloc[-1]      # 最后一天的交易信号
-        signal2 = signals_raw.iloc[-2]    # 最后第二天的交易信号
+        signal1 = signals_raw[-1]   # 最后一天的交易信号
+        signal2 = signals_raw[-2]    # 最后第二天的交易信号
         if signal1 == 1 and signal2 == 0:
             return operation_map[1]
         elif signal1 == signal2:
@@ -145,8 +148,8 @@ class AutoMacdParams:
         print('最优参数 fast/slow/signal:', fast, slow, signal)
         print('最优目标函数值:', yields)
         cumulative_returns, returns, signals, signals_raw, max_drawdown = self.cur_cumulative_returns(fast, slow, signal)
-        trade_info = self._mark_trade_info(returns, signals, cumulative_returns)
-        auto_result = self._auto_result(fast, slow, signal, yields, trade_info, max_drawdown)
+        trade_info = self._mark_trade_info(returns, signals, signals_raw, cumulative_returns)
+        auto_result = self._auto_result(fast, slow, signal, yields, trade_info, max_drawdown, signals_raw)
         return trade_info, auto_result
 
 

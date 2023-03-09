@@ -104,13 +104,14 @@ class SubStocks(Base):
 class AutoMacdResult(Base):
     __tablename__ = 'auto_macd_result'
     __table_args__ = (
-        PrimaryKeyConstraint('date', 'code'),
+        PrimaryKeyConstraint('date', 'code', 'stock_type'),
         {'comment': "自动调参macd计算结果"},
     )
     date = Column(CHAR(8), comment='日期')
     # latest_trade = Column(CHAR(10), comment='最后一次交易日期')
     code = Column(String(10), comment='股票|基金代码')
     name = Column(String(40), comment='股票|基金简称')
+    stock_type = Column(Integer, comment='1.股票|2. 基金')
     start_dt = Column(CHAR(10), comment='回测开始时间')
     trade_days = Column(Integer, comment='交易总天数')
     fast = Column(Integer, comment='快线参数')
