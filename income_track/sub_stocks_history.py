@@ -100,7 +100,7 @@ def upsert_fund_etf_daily_em():
     )
 
 
-def add_etf_sub(etf_codes: tuple, sub_type=2):
+def add_etf_sub(etf_codes: str, sub_type=2):
     """添加etf订阅"""
 
     with engine.connect() as conn:
@@ -108,43 +108,45 @@ def add_etf_sub(etf_codes: tuple, sub_type=2):
             REPLACE INTO sub_stocks 
             SELECT code, name, {sub_type}, 0,  now() 
             FROM fund_etf_daily_em ee 
-            where ee.date=DATE_FORMAT(CURRENT_DATE, 'yyyymmdd') AND ee.`code` in {etf_codes};
+            where ee.date='20230309' AND ee.`code` in ({etf_codes});
             """
         conn.execute(text(sql))
         conn.commit()
 
 
-def add_stock_sub(stock_code, sub_type=1):
+def add_stock_sub(stock_codes, sub_type=1):
     with engine.connect() as conn:
         sql = f"""
             REPLACE INTO sub_stocks 
             SELECT code, name, {sub_type}, 0,  now() 
             FROM stock_zh_a_spot_em ee 
-            WHERE ee.date=DATE_FORMAT(CURRENT_DATE, 'yyyymmdd') AND ee.`code` in {stock_code};
+            WHERE ee.date='20230309' AND ee.`code` in ({stock_codes});
             """
         conn.execute(text(sql))
         conn.commit()
 
 
 def etf_codes_v1():
-    return (
-        '512660', '516150', '515880', '159792', '515790', '516090', '516790',
-        '560800', '159658', '515400', '159991', '159806', '159996', '515220',
-        '159819', '159869', '159919', '516110', '159801', '153050', '512170',
-        '516780', '515700', '513330', '515210', '159980', '588360', '588080',
-        '161725', '588080', '159766', '510050', '512480'
-    )
+    # return (
+    #     '512660', '516150', '515880', '159792', '515790', '516090', '516790',
+    #     '560800', '159658', '515400', '159991', '159806', '159996', '515220',
+    #     '159819', '159869', '159919', '516110', '159801', '153050', '512170',
+    #     '516780', '515700', '513330', '515210', '159980', '588360', '588080',
+    #     '161725', '588080', '159766', '510050', '512480'
+    # )
+    codes =  ('513500')
+    return ''.join(f"{c}" for c in codes)
 
 
 def stock_codes_v1():
-    return (
+    codes = (
         '000063', '000519', '000651', '000821', '000938', '000977', '002049',
         '002050', '002363', '002371', '002460', '002466', '002532', '002594',
         '002607', '002738', '002756', '600031', '600036', '600316', '600418',
         '600522', '601390', '601888', '603019', '603201', '605259', '000002',
         '000001', '601127', '002532', '002190'
     )
-
+    return ''.join(f"{c}" for c in codes)
 
 def get_subs(stock_codes=(1, 2)):
     with engine.connect() as conn:
@@ -156,11 +158,19 @@ def get_subs(stock_codes=(1, 2)):
             yield sub   # code, name, stock_type
 
 
+def get_sub(code, stock_type):
+    with engine.connect() as conn:
+        sql = f'SELECT code, name, stock_type FROM sub_stocks ' \
+              f'WHERE is_delete=0 AND code={code} AND stock_type={stock_type} LIMIT 1'
+        cur = conn.execute(text(sql))
+        return cur.fetchone()
+
+
 if __name__ == '__main__':
     # 手动更新, 并添加订阅
     # update_stock_zh_a_spot_em()
     # upsert_fund_etf_daily_em()
-    # add_etf_sub(etf_codes_v1())
+    add_etf_sub(etf_codes_v1())
     # add_stock_sub(stock_codes_v1())
     for code, name, stock_type in get_subs((2, )):
         print(code, name, stock_type)
