@@ -34,11 +34,22 @@ class AutoMacdParams:
     SLOW = 26
     SIGNAL = 9
 
-    def __init__(self, code: str, name: str, stock_type: int, data: pd.DataFrame, trad_days=130, n_calls=100):
+    def __init__(self, code: str, name: str, stock_type: int, data: pd.DataFrame, trad_days=130, n_calls=100, macd_days=140):
+        """
+        macd自动调参, 收益计算模型
+        :param code:
+        :param name:
+        :param stock_type:
+        :param data:
+        :param trad_days: 模拟交易天数
+        :param macd_days: 当前交易日到往前 macd_days 个日期这段时间的macd收益测算
+        :param n_calls:
+        """
         self._code = code
         self._name = name
         self._stock_type = stock_type
         self._trad_days = trad_days
+        self._macd_days = macd_days
         self._data = data
         self._close = self._data['close']
         self.n_calls = n_calls
@@ -53,9 +64,9 @@ class AutoMacdParams:
                 return 0.01
             __ = self.cur_cumulative_returns(fast, slow, signal)
             cumulative_returns, returns, signals, signals_raw, max_drawdown = __
-            if float(max_drawdown) > 0.13 and cumulative_returns.iloc[-1] - max_drawdown <= 0.1:
-                print(f'warning returns: {cumulative_returns.iloc[-1]}, drawdown: {max_drawdown} > 13per')
-                return 0.01      # 舍去较大亏损结果, 0.9表示收益为-0.9
+            # if float(max_drawdown) > 0.13 and cumulative_returns.iloc[-1] - max_drawdown <= 0.1:
+            #     print(f'warning returns: {cumulative_returns.iloc[-1]}, drawdown: {max_drawdown} > 13per')
+            #     return 0.01   # 舍去较大亏损结果, 0.9表示收益为-0.9
             return -cumulative_returns.iloc[-1]
 
         return gp_minimize(_objective_wrapper, SPACE, n_calls=self.n_calls, random_state=0)
@@ -101,18 +112,24 @@ class AutoMacdParams:
         date = trade_info['date']
         hold_days = signals.sum()
         start_dt = date.iloc[date.shape[0] - min(self._trad_days, date.shape[0])]
+        end_dt = date.iloc[-1]
+        date_str = datetime.strptime(end_dt, '%Y-%m-%d').strftime('%Y%m%d') \
+            if isinstance(end_dt, str) else datetime.strftime(end_dt, '%Y%m%d')
         return {
-            'date': time.strftime('%Y%m%d'),
+            'date': date_str,
             'code': self._code,
             'name': self._name,
             'stock_type': self._stock_type,
             # 's_dt': datetime.strftime(date.iloc[date.shape[0] - min(self._trad_days, date.shape[0])], '%Y-%m-%d'),
             'start_dt': start_dt if isinstance(start_dt, str) else datetime.strftime(start_dt, '%Y-%m-%d'),
+            'end_dt': end_dt if isinstance(end_dt, str) else datetime.strftime(end_dt, '%Y-%m-%d'),
+            'end_close': self._close.iloc[-1],
             'trade_days': self._trad_days,
             'fast': fast,
             'slow': slow,
             'signal': int(signal),
             'hold_days': int(hold_days),                                        # 持有时间
+            # 持有: 以前一个交易日收盘价买入; 空仓: 以当前收盘价卖出
             'hold_status': '持有' if int(signals.iloc[-1]) == 1 else '空仓',
             'hold_status_change': self.get_hold_status_change(signals_raw),
             'hold_rate': round(hold_days / self._trad_days, 4) * 100,           # 持有率
@@ -139,7 +156,7 @@ class AutoMacdParams:
         else:
             return f'unknow: signal1: {signal1}, signal2: {signal2}'
 
-    def main(self):
+    def _main(self):
         res = self._objective()
         fast = round(res.x[0] * self.FAST)
         slow = round(res.x[1] * self.SLOW)
@@ -151,6 +168,16 @@ class AutoMacdParams:
         trade_info = self._mark_trade_info(returns, signals, signals_raw, cumulative_returns)
         auto_result = self._auto_result(fast, slow, signal, yields, trade_info, max_drawdown, signals_raw)
         return trade_info, auto_result
+
+    @staticmethod
+    def main(code: str, name: str, stock_type: int, data: pd.DataFrame, trad_days=130, n_calls=100, macd_days=140):
+        # macd_days: 完全模拟该方法, 回测140天, 并将持有, 出售信息写入数据库
+        for i in range(macd_days):
+            trad_data = data[:data.shape[0] - min(data.shape[0], macd_days-i)]
+            auto = AutoMacdParams(
+                code, name, stock_type, data=trad_data, trad_days=trad_days, n_calls=n_calls, macd_days=macd_days
+            )
+            yield auto._main()
 
 
 if __name__ == '__main__':
